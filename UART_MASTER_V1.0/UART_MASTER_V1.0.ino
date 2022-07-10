@@ -11,40 +11,57 @@ esp_now_peer_info_t slave;
 #define CHANNEL 1
 #define PRINTSCANRESULTS 0
 #define DELETEBEFOREPAIR 0
+#define MAC_ADDR_SIZE 6
 
 
-
-String compare_remote = "RemoteLED_";
+String compare_remote = "RemoteESP_";
 //String compare_remote = "Slave_";
 String SSID;
 int send_complete_flag = 0;
+int reconnect_count = 0;
 
-
+uint32_t current_time = 0;
+uint32_t past_time = 0;
+uint16_t interval = 1000;
 
 
 String success;
 uint8_t incomingRGB[3];
 int neopixel_Flag = 0;
+uint8_t broadcast_mac_addr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+//uint8_t target_mac_addr[] = {0x60, 0x55, 0xf9, 0x57, 0x48, 0xe9};
+uint8_t target_mac_addr[MAC_ADDR_SIZE] ={0,};
+
 
 #pragma pack(push, 1)
 typedef struct packet_
 {
-    uint8_t STX;  // 0x02
-    uint8_t ETX;  // 0x03
-    uint8_t seq_num;
+    uint8_t STX;  // 0x02    
+    uint32_t seq_num;
     uint8_t device_led;
     uint8_t state;      // pairing 상태
     uint16_t magic;     // 고유번호 기능
-    uint8_t RED; 
-    uint8_t GREEN;
-    uint8_t BLUE;
+    uint8_t RGB[3]; 
     uint8_t brightness;
     uint8_t style;            
     uint8_t wait;
     uint8_t checksum;
-    uint8_t payload[0];
+    uint8_t payload;
+    uint8_t ETX;  // 0x03
 }PACKET;
 #pragma pack(pop)
+
+
+#pragma pack(push, 1)
+typedef struct test_
+{
+    uint8_t STX;  // 0x02    
+    uint8_t ETX;  // 0x03
+}TEST_PACKET;
+#pragma pack(pop)
+
+TEST_PACKET sample_test;
+TEST_PACKET sample_incomings;
 
 typedef enum {
   oneColor = 1,
@@ -56,8 +73,8 @@ typedef enum {
 
 PACKET serial_data = {0, };
 PACKET incomingReadings;
-PACKET sample_data1 = {0x10, 255, 0, 0, 10, 1, 20, 0};
-PACKET sample_data2 = {0x10, 0, 0, 255, 0, 1, 20, 0};
+PACKET sample_data1 = {0x02, 0, 0x10, 1, 15, {255, 40, 100}, 50, 1, 20, 0, 120,0x03};
+PACKET sample_data2 = {0x02, 0, 0x10, 1, 16, {100, 255, 40}, 50, 1, 20, 0, 120,0x03};
 
 
 
@@ -244,11 +261,61 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
   Serial.print("Last Packet Sent to: "); Serial.println(macStr);
   Serial.print("Last Packet Send Status: "); Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if(status == ESP_NOW_SEND_SUCCESS)
+  {
+    reconnect_count = 0;
+  }
+  else
+  {
+    reconnect_count++;
+    if(reconnect_count >= 10)
+    {
+      ESP.restart();
+    }
+  }
+  
 }
 
 // Callback when data is received
-void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) {
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.print("Last Packet Recv from: "); Serial.println(macStr);
+  Serial.print("Last Packet Recv Data: "); Serial.println(*incomingData);
+  Serial.println("");
   memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
+//  memcpy(&sample_incomings, incomingData, sizeof(sample_incomings));
+   uint8_t start_sign = incomingReadings.STX;
+  uint32_t sequence = incomingReadings.seq_num;
+  uint8_t target_board_led = incomingReadings.device_led;
+  uint8_t _state = incomingReadings.state;
+  uint16_t _magic = incomingReadings.magic;
+  uint8_t R = incomingReadings.RGB[0];
+  uint8_t G = incomingReadings.RGB[1];
+  uint8_t B = incomingReadings.RGB[2];
+  uint8_t _brightness = incomingReadings.brightness;
+  uint8_t _style = incomingReadings.style;
+  uint8_t waitORtimes = incomingReadings.wait;
+  uint8_t _checksum = incomingReadings.checksum;
+  uint8_t _payload = incomingReadings.payload;
+  uint8_t end_sign = incomingReadings.ETX;
+
+  Serial.println(start_sign);
+  Serial.println(end_sign);
+  
+  Serial.println(sequence);
+  Serial.println(target_board_led);
+  Serial.println(_state);
+  Serial.println(_magic);
+  Serial.println(incomingReadings.RGB[0]);
+  Serial.println(incomingReadings.RGB[1]);
+  Serial.println(incomingReadings.RGB[2]);
+  Serial.println(incomingReadings.brightness);
+  Serial.println(incomingReadings.style);
+  Serial.println(incomingReadings.wait);
+  Serial.println(incomingReadings.checksum);
+  Serial.println(incomingReadings.payload);
   
 }
 
@@ -273,7 +340,8 @@ void setup() {
   // Once ESPNow is successfully Init, we will register for Send CB to
   // get the status of Trasnmitted packet
   esp_now_register_send_cb(OnDataSent);
-
+  esp_now_register_recv_cb(OnDataRecv);
+  
   while(true)
   {
       // In the loop we scan for slave
@@ -298,18 +366,18 @@ void setup() {
 //          sendData();
           if(send_complete_flag == 1)
           {
-            Serial.println("------Remote LED connected-------");
+            Serial.println("------Remote ESP connected-------");
             break;
           }
     
-        }        
+        }
       }
       else {
         // No slave found to process
       }
     
-      // wait for 3seconds to run the logic again
-      delay(3000);
+      // wait for 2seconds to run the logic again
+      delay(2000);
   }
   
   Serial.write("\r\nSetup_Done");
@@ -320,13 +388,48 @@ void loop() {
   if(Serial.available())
   {
       // packet 사이즈만큼 읽어옴
-      Serial.readBytes((char*)&serial_data, sizeof(serial_data));
+//      Serial.readBytes((char*)&serial_data, sizeof(serial_data));
       serial_data.checksum += 1;
-      neopixel_Flag = 1;
+//      neopixel_Flag = 1;
       Serial.println("-----------------------");      
       //Serial.write((char*)&serial_data, sizeof(serial_data));
       delay(1);
+
+      char pressed = Serial.read();
+      
+      if(pressed == 'a'){
+        Serial.println("a pressed");
+//        sample_test.STX = 0x02;
+//        sample_test.ETX = 0x03;
+//        Serial.println(sample_test.STX);
+//        Serial.println(sample_test.ETX);
+        esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data2, sizeof(sample_data2));
+        if(result == ESP_OK){
+          Serial.println("Send Serial OK");
+        }else{
+          Serial.println("Send Serial Fail");
+        }
+        delay(10);
+        
+      }
   }
+  
+  current_time = millis();
+  if(current_time - past_time >= interval)
+  {
+    past_time = current_time;
+//    sample_test.STX = 0x02;
+//    sample_test.ETX = 0x03;
+//    Serial.println(sample_test.STX);
+//    Serial.println(sample_test.ETX);
+    esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
+    if(result == ESP_OK){
+      Serial.println("Send Serial OK");
+    }else{
+      Serial.println("Send Serial Fail");
+    }    
+  }
+  
 
 
   if( neopixel_Flag == 1 ){

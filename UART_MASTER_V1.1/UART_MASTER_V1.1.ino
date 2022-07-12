@@ -393,17 +393,17 @@ void loop() {
 //      }
   }
   
-  current_time = millis();
-  if(current_time - past_time >= interval)
-  {
-    past_time = current_time;
-    esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
-    if(result == ESP_OK){
-//      Serial.println("Send Serial OK");
-    }else{
-//      Serial.println("Send Serial Fail");
-    }    
-  }
+//  current_time = millis();
+//  if(current_time - past_time >= interval)
+//  {
+//    past_time = current_time;
+//    esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
+//    if(result == ESP_OK){
+////      Serial.println("Send Serial OK");
+//    }else{
+////      Serial.println("Send Serial Fail");
+//    }    
+//  }
   
 
 

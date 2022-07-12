@@ -32,8 +32,7 @@ String success;
 int device_id = 1;    // check
 const char *SSID = "RemoteESP_1";
 ////////////////////////////////////////////////////////////////
-uint8_t target_mac_addr2[MAC_ADDR_SIZE] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-uint8_t target_mac_addr[6] = {0x08, 0x3a, 0xf2, 0xab, 0x4b, 0x74};
+uint8_t target_mac_addr[MAC_ADDR_SIZE] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 #pragma pack(push, 1)
 typedef struct packet_

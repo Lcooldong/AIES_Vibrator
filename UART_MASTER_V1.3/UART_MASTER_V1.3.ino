@@ -64,6 +64,7 @@ typedef enum {
 
 PACKET serial_data;
 PACKET incomingReadings;
+PACKET serial_lidar;
 PACKET sample_data1 = {0x02, 0, 0x10, 1, 15, 0, 120, 0x03};
 PACKET sample_data2 = {0x02, 0, 0x10, 1, 16, 0, 120, 0x03};
 
@@ -231,19 +232,19 @@ void loop() {
     past_time = current_time;
     newDistance = distanceFast(&distance);
     Serial.println(distance);
-<<<<<<< Updated upstream
-    UART2.write((char*)&incomingReadings, sizeof(incomingReadings));
-=======
-//    esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
->>>>>>> Stashed changes
-//    if(result == ESP_OK){
-//      Serial.println("Send Serial OK");
-//    }else{
-//      Serial.println("Send Serial Fail");
-//    }    
-  }
 
-  
+    if(distance < 50)
+    {
+      UART2.write((char*)&serial_lidar, sizeof(serial_lidar));
+
+      esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
+      if(result == ESP_OK){
+        Serial.println("Send Serial OK");
+      }else{
+        Serial.println("Send Serial Fail");
+      } 
+    }
+  } 
 }
 
 void broadcast(const uint8_t * broadcastData, int dataSize)

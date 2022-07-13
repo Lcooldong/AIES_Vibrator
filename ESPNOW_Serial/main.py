@@ -141,12 +141,12 @@ if __name__ == '__main__':
         print_data = Packet.from_buffer_copy(receive_data)
         read_packet_data(print_data)
         time.sleep(1)
-        data = Packet(0x02, sequence_number, 0x10, 2, magic_number, 0, packet_payload, 0x03)
-        send_data = py_serial.write(bytes(data))
-        time.sleep(1)
-        data = Packet(0x02, sequence_number, 0x10, 3, magic_number, 0, packet_payload, 0x03)
-        send_data = py_serial.write(bytes(data))
-        time.sleep(1)
+        # data = Packet(0x02, sequence_number, 0x10, 2, magic_number, 0, packet_payload, 0x03)
+        # send_data = py_serial.write(bytes(data))
+        # time.sleep(1)
+        # data = Packet(0x02, sequence_number, 0x10, 3, magic_number, 0, packet_payload, 0x03)
+        # send_data = py_serial.write(bytes(data))
+        # time.sleep(1)
 
 
     py_serial.close()

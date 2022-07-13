@@ -36,14 +36,10 @@ uint8_t target_mac_addr[MAC_ADDR_SIZE] ={0,};
 typedef struct packet_
 {
     uint8_t STX;  // 0x02    
-    uint32_t seq_num;
+    uint8_t seq_num;
     uint8_t device_led;
     uint8_t state;      // pairing 상태
-    uint16_t magic;     // 고유번호 기능
-    uint8_t RGB[3]; 
-    uint8_t brightness;
-    uint8_t style;            
-    uint8_t wait;
+    uint8_t magic;     // 고유번호 기능
     uint8_t checksum;
     uint8_t payload;
     uint8_t ETX;  // 0x03
@@ -58,10 +54,10 @@ typedef enum {
 
 //STYLE_Typedef _style;
 
-PACKET serial_data = {0, };
+PACKET serial_data;
 PACKET incomingReadings;
-PACKET sample_data1 = {0x02, 0, 0x10, 1, 15, {255, 40, 100}, 50, 1, 20, 0, 120,0x03};
-PACKET sample_data2 = {0x02, 0, 0x10, 1, 16, {100, 255, 40}, 50, 1, 20, 0, 120,0x03};
+PACKET sample_data1 = {0x02, 0, 0x10, 1, 15, 0, 120, 0x03};
+PACKET sample_data2 = {0x02, 0, 0x10, 1, 16, 0, 120, 0x03};
 
 
 
@@ -275,29 +271,16 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
   uint8_t target_board_led = incomingReadings.device_led;
   uint8_t _state = incomingReadings.state;
   uint16_t _magic = incomingReadings.magic;
-  uint8_t R = incomingReadings.RGB[0];
-  uint8_t G = incomingReadings.RGB[1];
-  uint8_t B = incomingReadings.RGB[2];
-  uint8_t _brightness = incomingReadings.brightness;
-  uint8_t _style = incomingReadings.style;
-  uint8_t waitORtimes = incomingReadings.wait;
   uint8_t _checksum = incomingReadings.checksum;
   uint8_t _payload = incomingReadings.payload;
   uint8_t end_sign = incomingReadings.ETX;
 
   Serial.println(start_sign);
   Serial.println(end_sign);
-  
   Serial.println(sequence);
   Serial.println(target_board_led);
   Serial.println(_state);
   Serial.println(_magic);
-  Serial.println(incomingReadings.RGB[0]);
-  Serial.println(incomingReadings.RGB[1]);
-  Serial.println(incomingReadings.RGB[2]);
-  Serial.println(incomingReadings.brightness);
-  Serial.println(incomingReadings.style);
-  Serial.println(incomingReadings.wait);
   Serial.println(incomingReadings.checksum);
   Serial.println(incomingReadings.payload);
   
@@ -374,23 +357,20 @@ void loop() {
       Serial.readBytes((char*)&serial_data, sizeof(serial_data));
       serial_data.checksum += 1;
       neopixel_Flag = 1;
-      Serial.println("-----------------------");      
-      Serial.write((char*)&serial_data, sizeof(serial_data));
-      delay(1);
+      Serial.println("-----------------------");
+      uart2_port.println("-----------------------");
+      uart2_port.println(serial_data.STX);
+      uart2_port.println(serial_data.seq_num);
+      uart2_port.println(serial_data.device_led);
+      uart2_port.println(serial_data.state);
+      uart2_port.println(serial_data.magic);
+      uart2_port.println(serial_data.checksum);
+      uart2_port.println(serial_data.payload);
+      uart2_port.println(serial_data.ETX);
+      uart2_port.println("-----------------------");
+//      Serial.write((char*)&serial_data, sizeof(serial_data));
+      delay(100);
 
-//      char pressed = Serial.read();
-//      
-//      if(pressed == 'a'){
-//        Serial.println("a pressed");
-//        esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data2, sizeof(sample_data2));
-//        if(result == ESP_OK){
-//          Serial.println("Send Serial OK");
-//        }else{
-//          Serial.println("Send Serial Fail");
-//        }
-//        delay(10);
-//        
-//      }
   }
   
 //  current_time = millis();

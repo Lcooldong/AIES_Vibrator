@@ -38,14 +38,10 @@ uint8_t target_mac_addr[MAC_ADDR_SIZE] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 typedef struct packet_
 {
     uint8_t STX;
-    uint32_t seq_num;
-    uint8_t device_led;
+    uint8_t seq_num;
+    uint8_t device_id;
     uint8_t state;      // pairing 상태
-    uint16_t magic;     // 고유번호 기능
-    uint8_t RGB[3];
-    uint8_t brightness;
-    uint8_t style;            
-    uint8_t wait;
+    uint8_t magic;     // 고유번호 기능
     uint8_t checksum;
     uint8_t payload;
     uint8_t ETX;
@@ -181,15 +177,9 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
 //  }
   uint8_t start_sign = incomingReadings.STX;
   uint32_t sequence = incomingReadings.seq_num;
-  uint8_t target_board_led = incomingReadings.device_led;
+  uint8_t target_board_led = incomingReadings.device_id;
   uint8_t _state = incomingReadings.state;
   uint16_t _magic = incomingReadings.magic;
-  uint8_t R = incomingReadings.RGB[0];
-  uint8_t G = incomingReadings.RGB[1];
-  uint8_t B = incomingReadings.RGB[2];
-  uint8_t _brightness = incomingReadings.brightness;
-  uint8_t _style = incomingReadings.style;
-  uint8_t waitORtimes = incomingReadings.wait;
   uint8_t _checksum = incomingReadings.checksum;
   uint8_t _payload = incomingReadings.payload;
   uint8_t end_sign = incomingReadings.ETX;
@@ -201,12 +191,6 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
   Serial.println(target_board_led);
   Serial.println(_state);
   Serial.println(_magic);
-  Serial.println(incomingReadings.RGB[0]);
-  Serial.println(incomingReadings.RGB[1]);
-  Serial.println(incomingReadings.RGB[2]);
-  Serial.println(incomingReadings.brightness);
-  Serial.println(incomingReadings.style);
-  Serial.println(incomingReadings.wait);
   Serial.println(incomingReadings.checksum);
   Serial.println(incomingReadings.payload);
 
@@ -262,45 +246,45 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
   }
 
 
-  strip.setBrightness(_brightness);
-  
-  if( start_sign == 0x02 || end_sign == 0x03 )
-  {
-    
-  }
-  
-  // target_board_led >> 4
-  if(device_id == (target_board_led / 16))
-  {
-    switch(incomingReadings.style)
-    {
-      case oneColor:
-        pickOneLED(target_board_led%16, strip.Color(R, G, B), _brightness, waitORtimes);
-        break;
-        
-      case CHASE:
-        theaterChase(strip.Color(R, G, B), waitORtimes);
-        resetNeopixel();
-        break;
-        
-      case RAINBOW:
-        rainbow(waitORtimes);
-        resetNeopixel();
-        break;
-        
-      case COLORWIPE:
-        colorWipe(strip.Color(R, G, B), waitORtimes * 10);
-        break;
-      case CHASE_RAINBOW:
-        theaterChaseRainbow(waitORtimes);
-        resetNeopixel();
-        break;
-
-      default:
-        resetNeopixel();
-        break;
-    }
-  } 
+//  strip.setBrightness(_brightness);
+//  
+//  if( start_sign == 0x02 || end_sign == 0x03 )
+//  {
+//    
+//  }
+//  
+//  // target_board_led >> 4
+//  if(device_id == (target_board_led / 16))
+//  {
+//    switch(incomingReadings.style)
+//    {
+//      case oneColor:
+//        pickOneLED(target_board_led%16, strip.Color(R, G, B), _brightness, waitORtimes);
+//        break;
+//        
+//      case CHASE:
+//        theaterChase(strip.Color(R, G, B), waitORtimes);
+//        resetNeopixel();
+//        break;
+//        
+//      case RAINBOW:
+//        rainbow(waitORtimes);
+//        resetNeopixel();
+//        break;
+//        
+//      case COLORWIPE:
+//        colorWipe(strip.Color(R, G, B), waitORtimes * 10);
+//        break;
+//      case CHASE_RAINBOW:
+//        theaterChaseRainbow(waitORtimes);
+//        resetNeopixel();
+//        break;
+//
+//      default:
+//        resetNeopixel();
+//        break;
+//    }
+//  } 
 
   
 }

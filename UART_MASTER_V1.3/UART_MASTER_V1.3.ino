@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <Wire.h>
+#include <SPI.h>
 #include <LIDARLite_v3HP.h>
 #define FAST_I2C
 LIDARLite_v3HP myLidarLite;
@@ -23,7 +24,6 @@ esp_now_peer_info_t slave;
 bool led_state = 0;
 
 String compare_remote = "RemoteESP_";
-//String compare_remote = "Slave_";
 String SSID;
 int send_complete_flag = 0;
 int reconnect_count = 0;
@@ -68,11 +68,206 @@ PACKET sample_data1 = {0x02, 0, 0x10, 1, 15, 0, 120, 0x03};
 PACKET sample_data2 = {0x02, 0, 0x10, 1, 16, 0, 120, 0x03};
 
 
+uint8_t data = 0;
+// send data
 
+
+// callback when data is sent from Master to Slave
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.print("Last Packet Sent to: "); Serial.println(macStr);
+  Serial.print("Last Packet Send Status: "); Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if(status == ESP_NOW_SEND_SUCCESS)
+  {
+    reconnect_count = 0;
+  }
+  else
+  {
+    reconnect_count++;
+    if(reconnect_count >= 10)
+    {
+      ESP.restart();
+    }
+  }
+  
+}
+
+// Callback when data is received
+void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) {
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.print("Last Packet Recv from: "); Serial.println(macStr);
+  Serial.print("Last Packet Recv Data: "); Serial.println(*incomingData);
+  Serial.println("");
+  memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
+//  memcpy(&sample_incomings, incomingData, sizeof(sample_incomings));
+  uint8_t start_sign = incomingReadings.STX;
+  uint8_t sequence = incomingReadings.seq_num;
+  uint8_t target_board_led = incomingReadings.device_id;
+  uint8_t _state = incomingReadings.state;
+  uint8_t _magic = incomingReadings.magic;
+  uint8_t _checksum = incomingReadings.checksum;
+  uint8_t _payload = incomingReadings.payload;
+  uint8_t end_sign = incomingReadings.ETX;
+
+  Serial.println(start_sign);
+  Serial.println(end_sign);
+  Serial.println(sequence);
+  Serial.println(target_board_led);
+  Serial.println(_state);
+  Serial.println(_magic);
+  Serial.println(incomingReadings.checksum);
+  Serial.println(incomingReadings.payload);
+  incomingReadings.checksum = incomingReadings.checksum + 1;
+  if (incomingReadings.checksum == 3)
+  {
+    led_state = !led_state;
+    digitalWrite(BUILTIN_LED,led_state);
+  }
+  UART2.write((char*)&incomingReadings, sizeof(incomingReadings));
+  delay(1);
+  
+}
+
+
+void setup() {
+  Serial.begin(115200);
+   UART2.begin(115200, SWSERIAL_8N1, UART2_RX, UART2_TX, false);
+  if (!UART2) { // If the object did not initialize, then its configuration is invalid
+    UART2.println("Invalid SoftwareSerial pin configuration, check config"); 
+    while (1) { // Don't continue with invalid configuration
+    delay (1000);
+    }
+  } 
+  pinMode(BUILTIN_LED, OUTPUT);
+  
+  //Set device in STA mode to begin with
+  WiFi.mode(WIFI_STA);
+  UART2.println("ESPNow/Basic/Master Example");
+  // This is the mac address of the Master in Station Mode
+  UART2.print("STA MAC: "); UART2.println(WiFi.macAddress());
+  // Init ESPNow with a fallback logic
+  InitESPNOW();
+  // Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_register_send_cb(OnDataSent);
+  esp_now_register_recv_cb(OnDataRecv);
+  
+  while(true)
+  {
+      // In the loop we scan for slave
+      ScanForSlave();
+      // If Slave is found, it would be populate in `slave` variable
+      // We will check if `slave` is defined and then we proceed further
+      if (slave.channel == CHANNEL) { // check if slave channel is defined
+        // `slave` is defined
+        // Add slave as peer if it has not been added already
+        if(SSID.startsWith(compare_remote) == 1)
+        {
+          bool isPaired = manageSlave();
+          if (isPaired) {
+            // pair success or already paired
+            // Send data to device
+            send_Data();
+          } else {
+            // slave pair failed
+            UART2.println("Slave pair failed!");
+          }
+//          send_Data();
+          if(send_complete_flag == 1)
+          {
+            UART2.println("------Remote ESP connected-------");
+            break;
+          }
+    
+        }
+      }
+      else {
+        // No slave found to process
+      }
+    
+      // wait for 2seconds to run the logic again
+      delay(2000);
+  }
+  
+  UART2.write("\r\nSetup_Done\r\n");
+
+  Wire.begin();
+  #ifdef FAST_I2C
+      #if ARDUINO >= 157
+          Wire.setClock(400000UL); // Set I2C frequency to 400kHz (for Arduino Due)
+      #else
+          TWBR = ((F_CPU / 400000UL) - 16) / 2; // Set I2C frequency to 400kHz
+      #endif
+  #endif
+  myLidarLite.configure(0);
+}
+
+void loop() {
+  if(UART2.available())
+  {
+      // packet 사이즈만큼 읽어옴
+      UART2.readBytes((char*)&serial_data, sizeof(serial_data));
+      delay(1);
+      serial_data.checksum += 1;
+      neopixel_Flag = 1;
+      Serial.println("-----------------------");  
+  }
+  
+
+  
+  if( neopixel_Flag == 1 ){
+    neopixel_Flag = 0;
+    broadcast((uint8_t *) &serial_data, sizeof(serial_data));
+  }
+  uint16_t distance;
+  uint8_t  newDistance = 0;
+  current_time = millis();
+  if(current_time - past_time >= interval)
+  {
+    past_time = current_time;
+    newDistance = distanceFast(&distance);
+    Serial.println(distance);
+    UART2.write((char*)&incomingReadings, sizeof(incomingReadings));
+//    if(result == ESP_OK){
+//      Serial.println("Send Serial OK");
+//    }else{
+//      Serial.println("Send Serial Fail");
+//    }    
+  }
+
+  
+}
+
+void broadcast(const uint8_t * broadcastData, int dataSize)
+{
+  // this will broadcast a message to everyone in range
+  uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(&peerInfo.peer_addr, broadcastAddress, 6);
+  if (!esp_now_is_peer_exist(broadcastAddress))
+  {
+    esp_now_add_peer(&peerInfo);
+  }
+  esp_err_t result = esp_now_send(broadcastAddress, (const uint8_t *)broadcastData, dataSize);
+
+}
+
+uint8_t distanceFast(uint16_t * distance)
+{
+    myLidarLite.waitForBusy();
+    myLidarLite.takeRange();
+    *distance = myLidarLite.readDistance();
+
+    return 1;
+}
 
 
 // Init ESP Now with fallback
-void InitESPNow() {
+void InitESPNOW() {
   WiFi.disconnect();
   if (esp_now_init() == ESP_OK) {
     Serial.println("ESPNow Init Success");
@@ -215,9 +410,7 @@ void deletePeer() {
   }
 }
 
-uint8_t data = 0;
-// send data
-void sendData() {
+void send_Data() {
   data++;
   const uint8_t *peer_addr = slave.peer_addr;
   Serial.print("Sending: "); Serial.println(data);
@@ -240,197 +433,4 @@ void sendData() {
   } else {
     Serial.println("Not sure what happened");
   }
-}
-
-// callback when data is sent from Master to Slave
-void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  char macStr[18];
-  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  Serial.print("Last Packet Sent to: "); Serial.println(macStr);
-  Serial.print("Last Packet Send Status: "); Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-  if(status == ESP_NOW_SEND_SUCCESS)
-  {
-    reconnect_count = 0;
-  }
-  else
-  {
-    reconnect_count++;
-    if(reconnect_count >= 10)
-    {
-      ESP.restart();
-    }
-  }
-  
-}
-
-// Callback when data is received
-void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) {
-  char macStr[18];
-  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  Serial.print("Last Packet Recv from: "); Serial.println(macStr);
-  Serial.print("Last Packet Recv Data: "); Serial.println(*incomingData);
-  Serial.println("");
-  memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
-//  memcpy(&sample_incomings, incomingData, sizeof(sample_incomings));
-  uint8_t start_sign = incomingReadings.STX;
-  uint8_t sequence = incomingReadings.seq_num;
-  uint8_t target_board_led = incomingReadings.device_id;
-  uint8_t _state = incomingReadings.state;
-  uint8_t _magic = incomingReadings.magic;
-  uint8_t _checksum = incomingReadings.checksum;
-  uint8_t _payload = incomingReadings.payload;
-  uint8_t end_sign = incomingReadings.ETX;
-
-  Serial.println(start_sign);
-  Serial.println(end_sign);
-  Serial.println(sequence);
-  Serial.println(target_board_led);
-  Serial.println(_state);
-  Serial.println(_magic);
-  Serial.println(incomingReadings.checksum);
-  Serial.println(incomingReadings.payload);
-  incomingReadings.checksum = incomingReadings.checksum + 1;
-  if (incomingReadings.checksum == 3)
-  {
-    led_state = !led_state;
-    digitalWrite(BUILTIN_LED,led_state);
-  }
-  UART2.write((char*)&incomingReadings, sizeof(incomingReadings));
-  delay(1);
-  
-}
-
-
-void setup() {
-  Serial.begin(115200);
-   UART2.begin(115200, SWSERIAL_8N1, UART2_RX, UART2_TX, false);
-  if (!UART2) { // If the object did not initialize, then its configuration is invalid
-    UART2.println("Invalid SoftwareSerial pin configuration, check config"); 
-    while (1) { // Don't continue with invalid configuration
-    delay (1000);
-    }
-  } 
-  pinMode(BUILTIN_LED, OUTPUT);
-  
-  //Set device in STA mode to begin with
-  WiFi.mode(WIFI_STA);
-  UART2.println("ESPNow/Basic/Master Example");
-  // This is the mac address of the Master in Station Mode
-  UART2.print("STA MAC: "); UART2.println(WiFi.macAddress());
-  // Init ESPNow with a fallback logic
-  InitESPNow();
-  // Once ESPNow is successfully Init, we will register for Send CB to
-  // get the status of Trasnmitted packet
-  esp_now_register_send_cb(OnDataSent);
-  esp_now_register_recv_cb(OnDataRecv);
-  
-  while(true)
-  {
-      // In the loop we scan for slave
-      ScanForSlave();
-      // If Slave is found, it would be populate in `slave` variable
-      // We will check if `slave` is defined and then we proceed further
-      if (slave.channel == CHANNEL) { // check if slave channel is defined
-        // `slave` is defined
-        // Add slave as peer if it has not been added already
-        if(SSID.startsWith(compare_remote) == 1)
-        {
-          bool isPaired = manageSlave();
-          if (isPaired) {
-            // pair success or already paired
-            // Send data to device
-            sendData();
-          } else {
-            // slave pair failed
-            UART2.println("Slave pair failed!");
-          }
-//          sendData();
-          if(send_complete_flag == 1)
-          {
-            UART2.println("------Remote ESP connected-------");
-            break;
-          }
-    
-        }
-      }
-      else {
-        // No slave found to process
-      }
-    
-      // wait for 2seconds to run the logic again
-      delay(2000);
-  }
-  
-  UART2.write("\r\nSetup_Done\r\n");
-
-  Wire.begin();
-  #ifdef FAST_I2C
-      #if ARDUINO >= 157
-          Wire.setClock(400000UL); // Set I2C frequency to 400kHz (for Arduino Due)
-      #else
-          TWBR = ((F_CPU / 400000UL) - 16) / 2; // Set I2C frequency to 400kHz
-      #endif
-  #endif
-  myLidarLite.configure(0);
-}
-
-void loop() {
-  if(UART2.available())
-  {
-      // packet 사이즈만큼 읽어옴
-      UART2.readBytes((char*)&serial_data, sizeof(serial_data));
-      delay(1);
-      serial_data.checksum += 1;
-      neopixel_Flag = 1;
-      Serial.println("-----------------------");  
-  }
-  
-
-  
-  if( neopixel_Flag == 1 ){
-    neopixel_Flag = 0;
-    broadcast((uint8_t *) &serial_data, sizeof(serial_data));
-  }
-  uint16_t distance;
-  uint8_t  newDistance = 0;
-  current_time = millis();
-  if(current_time - past_time >= interval)
-  {
-    past_time = current_time;
-    newDistance = distanceFast(&distance);
-    Serial.println(distance);
-    esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
-    if(result == ESP_OK){
-      Serial.println("Send Serial OK");
-    }else{
-      Serial.println("Send Serial Fail");
-    }    
-  }
-
-  
-}
-
-void broadcast(const uint8_t * broadcastData, int dataSize)
-{
-  // this will broadcast a message to everyone in range
-  uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-  esp_now_peer_info_t peerInfo = {};
-  memcpy(&peerInfo.peer_addr, broadcastAddress, 6);
-  if (!esp_now_is_peer_exist(broadcastAddress))
-  {
-    esp_now_add_peer(&peerInfo);
-  }
-  esp_err_t result = esp_now_send(broadcastAddress, (const uint8_t *)broadcastData, dataSize);
-
-}
-
-uint8_t distanceFast(uint16_t * distance)
-{
-    myLidarLite.waitForBusy();
-    myLidarLite.takeRange();
-    *distance = myLidarLite.readDistance();
-
-    return 1;
 }

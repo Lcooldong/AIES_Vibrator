@@ -50,11 +50,10 @@ typedef struct packet_
 
 
 typedef enum {
-  oneColor = 1,
-  CHASE,
-  RAINBOW,
-  COLORWIPE,
-  CHASE_RAINBOW
+  NORMAL = 1,
+  START,
+  WARNING,
+  END
 }STYLE_Typedef;
 
 PACKET serial_data = {0, };
@@ -214,6 +213,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
         // Pair success
         Serial.println("Pair success");
         pair_flag = true;
+        
 
       } else if (addStatus == ESP_ERR_ESPNOW_NOT_INIT) {
         // How did we get so far!!
@@ -237,54 +237,41 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
       }
   }
   
-  const uint8_t *peer_addr = master.peer_addr;
-  esp_err_t result = esp_now_send(peer_addr, (uint8_t *)&incomingReadings, sizeof(incomingReadings));
-  if(result == ESP_OK){
-    Serial.println("Return Success");
-  }else{
-    Serial.println("Return Fail");
-  }
+  incomingReadings.checksum = incomingReadings.checksum + 1;
+    // target_board_led >> 4
+  if((device_id == (target_board_led / 16)) && start_sign == 2 && end_sign == 3 && incomingReadings.checksum == 2)
+  {
+    const uint8_t *peer_addr = master.peer_addr;
+    esp_err_t result = esp_now_send(peer_addr, (uint8_t *)&incomingReadings, sizeof(incomingReadings));
+    if(result == ESP_OK){
+      Serial.println("Return Success");
+    }else{
+      Serial.println("Return Fail");
+    }
+    
+    switch(incomingReadings.state)
+    {
+      case NORMAL:
+        pickOneLED(0, strip.Color(0, 255, 0), 50, 10);
+        break;
+        
+      case START:
+        pickOneLED(0, strip.Color(0, 0, 255), 50, 10);
+        break;
+        
+      case WARNING:
+        pickOneLED(0, strip.Color(255, 0, 0), 50, 10);
+        break;
+        
+      case END:
+        resetNeopixel();
+        break;
 
-
-//  strip.setBrightness(_brightness);
-//  
-//  if( start_sign == 0x02 || end_sign == 0x03 )
-//  {
-//    
-//  }
-//  
-//  // target_board_led >> 4
-//  if(device_id == (target_board_led / 16))
-//  {
-//    switch(incomingReadings.style)
-//    {
-//      case oneColor:
-//        pickOneLED(target_board_led%16, strip.Color(R, G, B), _brightness, waitORtimes);
-//        break;
-//        
-//      case CHASE:
-//        theaterChase(strip.Color(R, G, B), waitORtimes);
-//        resetNeopixel();
-//        break;
-//        
-//      case RAINBOW:
-//        rainbow(waitORtimes);
-//        resetNeopixel();
-//        break;
-//        
-//      case COLORWIPE:
-//        colorWipe(strip.Color(R, G, B), waitORtimes * 10);
-//        break;
-//      case CHASE_RAINBOW:
-//        theaterChaseRainbow(waitORtimes);
-//        resetNeopixel();
-//        break;
-//
-//      default:
-//        resetNeopixel();
-//        break;
-//    }
-//  } 
+      default:
+        resetNeopixel();
+        break;
+    }
+  } 
 
   
 }

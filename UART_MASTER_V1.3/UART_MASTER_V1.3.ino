@@ -1,6 +1,12 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
+#include <stdint.h>
+#include <Wire.h>
+#include <LIDARLite_v3HP.h>
+#define FAST_I2C
+LIDARLite_v3HP myLidarLite;
+
 #include <SoftwareSerial.h>
 #define UART2_TX 17
 #define UART2_RX 16
@@ -24,7 +30,7 @@ int reconnect_count = 0;
 
 uint32_t current_time = 0;
 uint32_t past_time = 0;
-uint16_t interval = 1000;
+uint16_t interval = 100;
 
 
 String success;
@@ -358,7 +364,16 @@ void setup() {
   }
   
   UART2.write("\r\nSetup_Done\r\n");
-  
+
+  Wire.begin();
+  #ifdef FAST_I2C
+      #if ARDUINO >= 157
+          Wire.setClock(400000UL); // Set I2C frequency to 400kHz (for Arduino Due)
+      #else
+          TWBR = ((F_CPU / 400000UL) - 16) / 2; // Set I2C frequency to 400kHz
+      #endif
+  #endif
+  myLidarLite.configure(0);
 }
 
 void loop() {
@@ -369,30 +384,31 @@ void loop() {
       delay(1);
       serial_data.checksum += 1;
       neopixel_Flag = 1;
-      Serial.println("-----------------------");
-//      
-      
+      Serial.println("-----------------------");  
   }
   
-//  current_time = millis();
-//  if(current_time - past_time >= interval)
-//  {
-//    past_time = current_time;
-//    esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
-//    if(result == ESP_OK){
-////      Serial.println("Send Serial OK");
-//    }else{
-////      Serial.println("Send Serial Fail");
-//    }    
-//  }
+
   
-
-
   if( neopixel_Flag == 1 ){
     neopixel_Flag = 0;
     broadcast((uint8_t *) &serial_data, sizeof(serial_data));
-//    sendData();
   }
+  uint16_t distance;
+  uint8_t  newDistance = 0;
+  current_time = millis();
+  if(current_time - past_time >= interval)
+  {
+    past_time = current_time;
+    newDistance = distanceFast(&distance);
+    Serial.println(distance);
+    esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
+    if(result == ESP_OK){
+      Serial.println("Send Serial OK");
+    }else{
+      Serial.println("Send Serial Fail");
+    }    
+  }
+
   
 }
 
@@ -408,4 +424,13 @@ void broadcast(const uint8_t * broadcastData, int dataSize)
   }
   esp_err_t result = esp_now_send(broadcastAddress, (const uint8_t *)broadcastData, dataSize);
 
+}
+
+uint8_t distanceFast(uint16_t * distance)
+{
+    myLidarLite.waitForBusy();
+    myLidarLite.takeRange();
+    *distance = myLidarLite.readDistance();
+
+    return 1;
 }

@@ -4,7 +4,7 @@
 #include <SoftwareSerial.h>
 #define UART2_TX 17
 #define UART2_RX 16
-SoftwareSerial uart2_port;
+SoftwareSerial UART2;
 
 // Global copy of slave
 esp_now_peer_info_t slave;
@@ -84,11 +84,11 @@ void ScanForSlave() {
   bool slaveFound = 0;
   memset(&slave, 0, sizeof(slave));
 
-  Serial.println("");
+  UART2.println("");
   if (scanResults == 0) {
-    Serial.println("No WiFi devices in AP Mode found");
+    UART2.println("No WiFi devices in AP Mode found");
   } else {
-    Serial.print("Found "); Serial.print(scanResults); Serial.println(" devices ");
+    UART2.print("Found "); UART2.print(scanResults); UART2.println(" devices ");
     for (int i = 0; i < scanResults; ++i) {
       // Print SSID and RSSI for each device found
       SSID = WiFi.SSID(i);
@@ -96,20 +96,20 @@ void ScanForSlave() {
       String BSSIDstr = WiFi.BSSIDstr(i);
       
       if (PRINTSCANRESULTS) {
-        Serial.print(i + 1);
-        Serial.print(": ");
-        Serial.print(SSID);
-        Serial.print(" (");
-        Serial.print(RSSI);
-        Serial.print(")");
-        Serial.println("");
+        UART2.print(i + 1);
+        UART2.print(": ");
+        UART2.print(SSID);
+        UART2.print(" (");
+        UART2.print(RSSI);
+        UART2.print(")");
+        UART2.println("");
       }
       delay(10);
       // Check if the current device starts with `Remote`
       if (SSID.indexOf("Remote") == 0) {
         // SSID of interest
-        Serial.println("Found a Slave.");
-        Serial.print(i + 1); Serial.print(": "); Serial.print(SSID); Serial.print(" ["); Serial.print(BSSIDstr); Serial.print("]"); Serial.print(" ("); Serial.print(RSSI); Serial.print(")"); Serial.println("");
+        UART2.println("Found a Slave.");
+        UART2.print(i + 1); UART2.print(": "); UART2.print(SSID); UART2.print(" ["); UART2.print(BSSIDstr); Serial.print("]"); Serial.print(" ("); Serial.print(RSSI); Serial.print(")"); Serial.println("");
         // Get BSSID => Mac Address of the Slave
         int mac[6];
         if ( 6 == sscanf(BSSIDstr.c_str(), "%x:%x:%x:%x:%x:%x",  &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5] ) ) {
@@ -130,9 +130,9 @@ void ScanForSlave() {
   }
 
   if (slaveFound) {
-    Serial.println("Slave Found, processing..");    
+    UART2.println("Slave Found, processing..");    
   } else {
-    Serial.println("Slave Not Found, trying again.");
+    UART2.println("Slave Not Found, trying again.");
   }
   
   
@@ -291,17 +291,17 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
     led_state = !led_state;
     digitalWrite(BUILTIN_LED,led_state);
   }
-  Serial.write((char*)&incomingReadings, sizeof(incomingReadings));
+  UART2.write((char*)&incomingReadings, sizeof(incomingReadings));
   delay(1);
-  uart2_port.println("-----------------");
-  uart2_port.println(incomingReadings.STX);
-  uart2_port.println(incomingReadings.seq_num);
-  uart2_port.println(incomingReadings.device_id);
-  uart2_port.println(incomingReadings.state);
-  uart2_port.println(incomingReadings.magic);
-  uart2_port.println(incomingReadings.checksum);
-  uart2_port.println(incomingReadings.payload);
-  uart2_port.println(incomingReadings.ETX);
+//  UART2.println("-----------------");
+//  UART2.println(incomingReadings.STX);
+//  UART2.println(incomingReadings.seq_num);
+//  UART2.println(incomingReadings.device_id);
+//  UART2.println(incomingReadings.state);
+//  UART2.println(incomingReadings.magic);
+//  UART2.println(incomingReadings.checksum);
+//  UART2.println(incomingReadings.payload);
+//  UART2.println(incomingReadings.ETX);
 
 
   
@@ -310,9 +310,9 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
 
 void setup() {
   Serial.begin(115200);
-   uart2_port.begin(115200, SWSERIAL_8N1, UART2_RX, UART2_TX, false);
-  if (!uart2_port) { // If the object did not initialize, then its configuration is invalid
-    Serial.println("Invalid SoftwareSerial pin configuration, check config"); 
+   UART2.begin(115200, SWSERIAL_8N1, UART2_RX, UART2_TX, false);
+  if (!UART2) { // If the object did not initialize, then its configuration is invalid
+    UART2.println("Invalid SoftwareSerial pin configuration, check config"); 
     while (1) { // Don't continue with invalid configuration
     delay (1000);
     }
@@ -321,9 +321,9 @@ void setup() {
   
   //Set device in STA mode to begin with
   WiFi.mode(WIFI_STA);
-  Serial.println("ESPNow/Basic/Master Example");
+  UART2.println("ESPNow/Basic/Master Example");
   // This is the mac address of the Master in Station Mode
-  Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
+  UART2.print("STA MAC: "); UART2.println(WiFi.macAddress());
   // Init ESPNow with a fallback logic
   InitESPNow();
   // Once ESPNow is successfully Init, we will register for Send CB to
@@ -349,12 +349,12 @@ void setup() {
             sendData();
           } else {
             // slave pair failed
-            Serial.println("Slave pair failed!");
+            UART2.println("Slave pair failed!");
           }
 //          sendData();
           if(send_complete_flag == 1)
           {
-            Serial.println("------Remote ESP connected-------");
+            UART2.println("------Remote ESP connected-------");
             break;
           }
     
@@ -368,15 +368,15 @@ void setup() {
       delay(2000);
   }
   
-  Serial.write("\r\nSetup_Done\r\n");
+  UART2.write("\r\nSetup_Done\r\n");
   
 }
 
 void loop() {
-  if(Serial.available())
+  if(UART2.available())
   {
       // packet 사이즈만큼 읽어옴
-      Serial.readBytes((char*)&serial_data, sizeof(serial_data));
+      UART2.readBytes((char*)&serial_data, sizeof(serial_data));
       delay(1);
       serial_data.checksum += 1;
       neopixel_Flag = 1;

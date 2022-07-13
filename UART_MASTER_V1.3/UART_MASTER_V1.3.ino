@@ -231,7 +231,11 @@ void loop() {
     past_time = current_time;
     newDistance = distanceFast(&distance);
     Serial.println(distance);
+<<<<<<< Updated upstream
     UART2.write((char*)&incomingReadings, sizeof(incomingReadings));
+=======
+//    esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)&sample_data1, sizeof(sample_data1));
+>>>>>>> Stashed changes
 //    if(result == ESP_OK){
 //      Serial.println("Send Serial OK");
 //    }else{

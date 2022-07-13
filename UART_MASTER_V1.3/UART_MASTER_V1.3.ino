@@ -1,9 +1,6 @@
 #include <esp_now.h>
 #include <WiFi.h>
-
-#include <stdint.h>
 #include <Wire.h>
-#include <SPI.h>
 #include <LIDARLite_v3HP.h>
 #define FAST_I2C
 LIDARLite_v3HP myLidarLite;
@@ -233,7 +230,7 @@ void loop() {
     newDistance = distanceFast(&distance);
     Serial.println(distance);
 
-    if(distance < 50)
+    if(distance < 50 && distance != 0)
     {
       UART2.write((char*)&serial_lidar, sizeof(serial_lidar));
 

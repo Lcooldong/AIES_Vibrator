@@ -1,3 +1,5 @@
+// 컴파일 에러 - wire 말고 i2c 통신 연결하기
+
 #include <esp_now.h>
 #include <WiFi.h>
 #include <Wire.h>

@@ -120,7 +120,7 @@ def serial_receive_callback(ser, data):
 if __name__ == '__main__':
     print(serial_ports())
     # py_serial = serial.Serial(port="COM8", baudrate=115200, timeout=0.1)
-    py_serial = serial.Serial(port=connect_port('COM16'), baudrate=115200, timeout=0.1)
+    py_serial = serial.Serial(port=connect_port('COM7'), baudrate=115200, timeout=0.1)
     # py_serial = serial.Serial(port=connect_port(), baudrate=115200, timeout=0.1)    # 포트 연결
 
     readUntilString(py_serial)
@@ -137,9 +137,11 @@ if __name__ == '__main__':
         data = Packet(0x02, sequence_number, 0x10, 1, magic_number, 0, packet_payload, 0x03)
         send_data = py_serial.write(bytes(data))
         time.sleep(0.001)
+
         receive_data = py_serial.read(send_data)
-        print_data = Packet.from_buffer_copy(receive_data)
-        read_packet_data(print_data)
+        if receive_data > 0:
+            print_data = Packet.from_buffer_copy(receive_data)
+            read_packet_data(print_data)
         time.sleep(1)
         # data = Packet(0x02, sequence_number, 0x10, 2, magic_number, 0, packet_payload, 0x03)
         # send_data = py_serial.write(bytes(data))

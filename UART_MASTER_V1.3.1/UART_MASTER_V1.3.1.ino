@@ -38,7 +38,7 @@ uint16_t interval = 1000;
 
 String success;
 uint8_t incomingRGB[3];
-int neopixel_Flag = 0;
+int broadcast_Flag = 0;
 uint8_t broadcast_mac_addr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t target_mac_addr[MAC_ADDR_SIZE] ={0,};
 
@@ -69,10 +69,6 @@ PACKET serial_data;
 PACKET incomingReadings;
 PACKET sample_data1 = {0x02, 0, 0x10, 1, 15, 0, 120, 0x03};
 PACKET sample_data2 = {0x02, 0, 0x10, 1, 16, 0, 120, 0x03};
-
-
-
-
 
 // Init ESP Now with fallback
 void InitESPNow() {
@@ -143,9 +139,6 @@ void ScanForSlave() {
   } else {
     UART2.println("Slave Not Found, trying again.");
   }
-  
-  
-
   // clean up ram
   WiFi.scanDelete();
 }
@@ -395,7 +388,7 @@ void loop() {
       UART2.readBytes((char*)&serial_data, sizeof(serial_data));
       delay(1);
       serial_data.checksum += 1;
-      neopixel_Flag = 1;
+      broadcast_Flag = 1;
   }
   
   current_time = millis();
@@ -425,8 +418,8 @@ void loop() {
   
 
 
-  if( neopixel_Flag == 1 ){
-    neopixel_Flag = 0;
+  if( broadcast_Flag == 1 ){
+    broadcast_Flag = 0;
     broadcast((uint8_t *) &serial_data, sizeof(serial_data));
   }
   

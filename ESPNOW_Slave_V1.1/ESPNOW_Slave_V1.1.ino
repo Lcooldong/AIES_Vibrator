@@ -19,6 +19,7 @@
 #define BTN_PIN 3
 #define MAC_ADDR_SIZE 6
 
+// Debug용 LED
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
   #include <avr/power.h>
